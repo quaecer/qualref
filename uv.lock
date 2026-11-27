@@ -404,7 +404,7 @@ test-solver = [
 ]
 
 [package.metadata]
-requires-dist = [{ name = "quaecer-spec-qualification", git = "https://github.com/quaecer/specs.git?subdirectory=qualification&rev=0ca04bc9cf0e3b16feb13f1349a1179ddca41e07" }]
+requires-dist = [{ name = "quaecer-spec-qualification", git = "https://github.com/quaecer/specs.git?subdirectory=qualification&rev=4a088bb04632d1266144c985f6db339defe8c3a3" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -418,7 +418,7 @@ test-solver = [{ name = "quaecer-clockcheck", git = "https://github.com/quaecer/
 [[package]]
 name = "quaecer-spec-qualification"
 version = "1.0.0"
-source = { git = "https://github.com/quaecer/specs.git?subdirectory=qualification&rev=0ca04bc9cf0e3b16feb13f1349a1179ddca41e07#0ca04bc9cf0e3b16feb13f1349a1179ddca41e07" }
+source = { git = "https://github.com/quaecer/specs.git?subdirectory=qualification&rev=4a088bb04632d1266144c985f6db339defe8c3a3#4a088bb04632d1266144c985f6db339defe8c3a3" }
 
 [[package]]
 name = "ruff"

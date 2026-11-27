@@ -268,6 +268,7 @@ def assess(view: View, clockcheck: str | None) -> Record:
         "authorization": "not_granted",
         "findings": findings,
         "coverage": temporal.coverage,
+        "clock_constraints": temporal.clock_constraints,
         "dependence": [dependence[dimension] for dimension in sorted(dependence)],
         "inconsistencies": _ordered_reasons(inconsistencies),
         "transfers": [],

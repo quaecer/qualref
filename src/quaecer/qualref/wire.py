@@ -16,9 +16,10 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any, Never
 
+from quaecer.spec_qualification import MAX_REQUEST_BYTES
+
 BASE = "https://quaecer.github.io/specs/qualification/1.0/"
-# This offline implementation bounds the complete encoded input.
-LIMIT = 64 * 1024 * 1024
+LIMIT = MAX_REQUEST_BYTES
 _SAFE_INTEGER = 2**53 - 1
 
 _STEMS = (

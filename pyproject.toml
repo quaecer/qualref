@@ -44,7 +44,7 @@ testpaths = ["tests"]
 addopts = "--strict-config --strict-markers"
 
 [tool.uv.sources]
-quaecer-spec-qualification = { git = "https://github.com/quaecer/specs.git", rev = "0ca04bc9cf0e3b16feb13f1349a1179ddca41e07", subdirectory = "qualification" }
+quaecer-spec-qualification = { git = "https://github.com/quaecer/specs.git", rev = "4a088bb04632d1266144c985f6db339defe8c3a3", subdirectory = "qualification" }
 quaecer-clockcheck = { git = "https://github.com/quaecer/clockcheck.git", rev = "530ba4a446aab700079d6ac51149c0d74f2f1a09" }
 
 [tool.uv]

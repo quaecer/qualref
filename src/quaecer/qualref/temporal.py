@@ -9,7 +9,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .clock_problem import Bound, Check, Clause, ClockCheck, Problem
-from .wire import View, basis, canonical, instant, reason
+from .wire import View, basis, canonical, digest, instant, reason
 
 type Record = dict[str, Any]
 type Span = tuple[int, int]
@@ -56,10 +56,10 @@ def _observed_bounds(data: Record) -> Envelope:
         return None, None
     nominal = _time(data["at"])
     before, after = data["uncertainty_before_us"], data["uncertainty_after_us"]
-    return (
-        _bound(nominal - before if before is not None else None),
-        _bound(nominal + after if after is not None else None),
-    )
+    if before is None or after is None:
+        return None, None
+    lower, upper = _bound(nominal - before), _bound(nominal + after)
+    return (lower, upper) if lower is not None and upper is not None else (None, None)
 
 
 def _ordered(rows: list[Record]) -> list[Record]:
@@ -117,6 +117,7 @@ class Observation:
     clock: str | None
     accuracy: int | None
     usage_digest: str
+    unit: str | None
 
     @property
     def descriptor(self) -> tuple[str, Resource]:
@@ -151,6 +152,7 @@ def _observation(
     clock: str | None,
     accuracy: int | None,
     usage_digest: str,
+    unit: str | None = None,
 ) -> Observation:
     identity = data["occurrence_id"]
     return Observation(
@@ -165,6 +167,7 @@ def _observation(
         clock,
         accuracy,
         usage_digest,
+        unit,
     )
 
 
@@ -211,6 +214,7 @@ def _occurrences(view: View, units: list[Unit]) -> Occurrences:
                         unit.clock,
                         unit.accuracy,
                         entry["usage_digest"],
+                        unit.id,
                     )
                 )
 
@@ -336,6 +340,7 @@ class Positive:
     readings: dict[Reading, str]
     reports: set[str]
     complete: bool
+    clock_constraints: list[Record]
 
 
 def _maximum(values: list[int | None]) -> int | None:
@@ -346,19 +351,34 @@ def _minimum(values: list[int | None]) -> int | None:
     return min((value for value in values if value is not None), default=None)
 
 
-def _positive(units: list[Unit], events: list[Event], unresolved: bool) -> Positive:
+def _positive(
+    units: list[Unit], events: list[Event], unresolved: bool, pins: dict[str, Record]
+) -> Positive:
     clock_readings: dict[str, set[int]] = defaultdict(set)
     bands: dict[str, set[tuple[int, int, int]]] = defaultdict(set)
     reports: set[str] = set()
+    clock_constraints: list[Record] = []
     complete = not unresolved
     for unit in units:
         start, end = unit.span
         clock_readings[unit.clock].update(unit.span)
         if unit.accuracy is not None:
             bands[unit.clock].add((start, end, unit.accuracy))
+            clock_constraints.append(
+                {
+                    "kind": "capture_accuracy",
+                    "report": pins[unit.report],
+                    "unit": unit.id,
+                    "observer": unit.observer,
+                    "clock_id": unit.clock,
+                    "lower": _at(start),
+                    "upper": _at(end),
+                    "accuracy_us": unit.accuracy,
+                }
+            )
+            reports.add(unit.report)
         else:
             complete = False
-        reports.add(unit.report)
     for event in events:
         reports.update(event.reports)
         for observation in event.observations:
@@ -394,20 +414,43 @@ def _positive(units: list[Unit], events: list[Event], unresolved: bool) -> Posit
                     )
                 )
     for event in events:
+        occurrence = min(observation.id for observation in event.observations)
         for observation in event.observations:
             lower, upper = observation.bracket
             clock = observation.clock
+            if lower is None or upper is None:
+                continue
+            description = {
+                "report": pins[observation.report],
+                "event_id": observation.id,
+                "occurrence": occurrence,
+                "lower": _at(lower),
+                "upper": _at(upper),
+            }
             if clock is None:
-                if lower is not None:
-                    clauses.append((Bound(None, event.name, -lower),))
-                if upper is not None:
-                    clauses.append((Bound(event.name, None, upper),))
+                clauses.extend(
+                    ((Bound(None, event.name, -lower),), (Bound(event.name, None, upper),))
+                )
+                clock_constraints.append({"kind": "event_utc", **description})
             elif observation.accuracy is not None:
-                if lower is not None:
-                    clauses.append((Bound(readings[clock, lower], event.name),))
-                if upper is not None:
-                    clauses.append((Bound(event.name, readings[clock, upper]),))
-    return Positive(tuple(dict.fromkeys(clauses)), readings, reports, complete)
+                clauses.extend(
+                    (
+                        (Bound(readings[clock, lower], event.name),),
+                        (Bound(event.name, readings[clock, upper]),),
+                    )
+                )
+                clock_constraints.append(
+                    {
+                        "kind": "entry_clock",
+                        **description,
+                        "clock_id": clock,
+                        "unit": observation.unit,
+                        "accuracy_us": observation.accuracy,
+                    }
+                )
+    return Positive(
+        tuple(dict.fromkeys(clauses)), readings, reports, complete, _ordered(clock_constraints)
+    )
 
 
 @dataclass(frozen=True)
@@ -418,6 +461,7 @@ class Temporal:
     coverage: list[Record]
     inconsistencies: list[Record]
     findings: dict[str, Record]
+    clock_constraints: list[Record]
 
 
 def _declared_envelope(observation: Observation) -> Envelope:
@@ -523,6 +567,7 @@ def _widen(unit: Unit, channel: str, units: list[Unit], scope: str) -> set[Affec
 
 
 type Region = tuple[int, int, frozenset[str]]
+type Support = tuple[Span, Record]
 
 
 def _merge(items: list[Region]) -> list[Region]:
@@ -539,27 +584,35 @@ def _merge(items: list[Region]) -> list[Region]:
     return merged
 
 
-def _guaranteed(units: list[Unit], margin: int) -> list[Region]:
-    families: dict[str, list[Unit]] = defaultdict(list)
-    for unit in units:
-        families[unit.clock].append(unit)
-    interiors: list[Region] = []
-    for family in families.values():
-        for uncertainty in {max(margin, unit.accuracy or 0) for unit in family}:
-            nominal = _merge(
-                [
-                    (*unit.span, frozenset({unit.id}))
-                    for unit in family
-                    if (unit.accuracy or 0) <= uncertainty
-                ]
-            )
-            interiors.extend((a + uncertainty, b - uncertainty, names) for a, b, names in nominal)
-    return _merge(interiors)
+def _guaranteed(units: list[Unit], margin: int) -> list[Support]:
+    interiors = []
+    lookup = {unit.id: unit for unit in units}
+    for clock in sorted({unit.clock for unit in units}):
+        nominal = _merge(
+            [(*unit.span, frozenset({unit.id})) for unit in units if unit.clock == clock]
+        )
+        for a, b, names in nominal:
+            if a + margin < b - margin:
+                interiors.append(
+                    (
+                        (a + margin, b - margin),
+                        dict(
+                            clock_id=clock,
+                            lower=_at(a),
+                            upper=_at(b),
+                            accuracy_us=max(lookup[name].accuracy or 0 for name in names),
+                            erosion_us=margin,
+                            observers=sorted({lookup[name].observer for name in names}),
+                            unit_ids=sorted(names),
+                        ),
+                    )
+                )
+    return interiors
 
 
 def _composition(
     target: Span,
-    covered: list[Region],
+    supports: list[Support],
     defeated: list[Region],
     statements: list[dict[str, str]],
     reasons: list[Record],
@@ -573,7 +626,7 @@ def _composition(
     def wire(rows: list[Region]) -> list[Record]:
         return [{"interval": _interval((a, b)), "unit_ids": sorted(ids)} for a, b, ids in rows]
 
-    kept = clip(covered)
+    kept = clip([(*span, frozenset(proof["unit_ids"])) for span, proof in supports])
     edge = start
     gaps = []
     for a, b, _ in kept:
@@ -584,6 +637,13 @@ def _composition(
         gaps.append(_interval((edge, end)))
     return {
         "covered": wire(kept),
+        "supports": _ordered(
+            [
+                dict(proof, interval=_interval((max(start, a), min(end, b))))
+                for (a, b), proof in supports
+                if max(start, a) < min(end, b)
+            ]
+        ),
         "gaps": gaps,
         "defeated": wire(clip(defeated)),
         "statements": statements,
@@ -692,6 +752,7 @@ def _clock_compatibility(
     witnesses: dict[str, list[Record]] = defaultdict(list)
     notes = []
     if full.status == "incompatible":
+        premise_digest = digest(positive.clock_constraints)
         for event in facts.events:
             group = omitted.get(event.name, [])
             left, right = _event_envelope(event)
@@ -711,6 +772,8 @@ def _clock_compatibility(
                     "lower": _at(left),
                     "upper": _at(right),
                     "report_ids": list(event.reports),
+                    "occurrence": min(item.id for item in event.observations),
+                    "clock_constraints_digest": premise_digest,
                     "unit_ids": scopes,
                     "defeat_scope": policy["defeat_scope"],
                     "defeated_units": [
@@ -740,6 +803,7 @@ def evaluate_temporal(view: View, clockcheck: str | None) -> Temporal:
         facts.unresolved
         or bool(facts.conflicts)
         or any(event.canonical_id is None for event in facts.events),
+        view.pins,
     )
     notes = list(facts.reasons)
     eligible = []
@@ -905,4 +969,4 @@ def evaluate_temporal(view: View, clockcheck: str | None) -> Temporal:
             "reasons": _ordered(reasons),
             "basis": basis(view, pins),
         }
-    return Temporal(checked, coverage, _ordered(consistency), findings)
+    return Temporal(checked, coverage, _ordered(consistency), findings, positive.clock_constraints)

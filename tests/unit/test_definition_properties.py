@@ -474,8 +474,35 @@ class TestDefinitionProperties(unittest.TestCase):
                 )
                 self.assertEqual(original["findings"][0]["outcome"], "cantTell")
                 self.assertEqual(len(witnesses), int(shared))
+                premises = original["clock_constraints"]
+                self.assertIn(
+                    {
+                        "kind": "entry_clock",
+                        "report": {"id": calibration["id"], "digest": digest(calibration)},
+                        "event_id": anchor["id"],
+                        "occurrence": anchor["id"],
+                        "unit": calibration["id"],
+                        "clock_id": calibration["clock_id"],
+                        "lower": _time(3),
+                        "upper": _time(3),
+                        "accuracy_us": 1,
+                    },
+                    premises,
+                )
+                self.assertIn(
+                    {
+                        "kind": "event_utc",
+                        "report": {"id": anchor["id"], "digest": digest(anchor)},
+                        "event_id": anchor["id"],
+                        "occurrence": anchor["id"],
+                        "lower": _time(3),
+                        "upper": _time(3),
+                    },
+                    premises,
+                )
                 if shared:
                     self.assertEqual(set(witnesses[0]["unit_ids"]), {left["id"], right["id"]})
+                    self.assertEqual(witnesses[0]["clock_constraints_digest"], digest(premises))
                     omitted = next(
                         reason
                         for reason in original["inconsistencies"]
@@ -490,3 +517,7 @@ class TestDefinitionProperties(unittest.TestCase):
                         )
                         self.assertEqual(reduced["consistency"], "consistent")
                         self.assertEqual(reduced["coverage"][0]["window"]["joint_omissions"], [])
+                        self.assertNotIn(
+                            removed["id"],
+                            {premise["report"]["id"] for premise in reduced["clock_constraints"]},
+                        )
