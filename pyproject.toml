@@ -13,6 +13,9 @@ license-files = ["LICENSE"]
 authors = [{ name = "Mariia Steeghs-Turchina" }]
 dependencies = ["quaecer-spec-qualification>=1.0,<2"]
 
+[project.scripts]
+qualref = "quaecer.qualref.cli:main"
+
 [project.urls]
 Source = "https://github.com/quaecer/qualref"
 
