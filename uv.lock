@@ -379,9 +379,18 @@ wheels = [
 ]
 
 [[package]]
+name = "quaecer-clockcheck"
+version = "1.0.0.dev0"
+source = { git = "https://github.com/quaecer/clockcheck.git?rev=530ba4a446aab700079d6ac51149c0d74f2f1a09#530ba4a446aab700079d6ac51149c0d74f2f1a09" }
+
+[[package]]
 name = "quaecer-qualref"
 version = "1.0.0.dev0"
 source = { editable = "." }
+default-groups = ["dev", "test-solver"]
+dependencies = [
+    { name = "quaecer-spec-qualification" },
+]
 
 [package.dev-dependencies]
 dev = [
@@ -390,8 +399,12 @@ dev = [
     { name = "pytest" },
     { name = "ruff" },
 ]
+test-solver = [
+    { name = "quaecer-clockcheck" },
+]
 
 [package.metadata]
+requires-dist = [{ name = "quaecer-spec-qualification", git = "https://github.com/quaecer/specs.git?subdirectory=qualification&rev=0ca04bc9cf0e3b16feb13f1349a1179ddca41e07" }]
 
 [package.metadata.requires-dev]
 dev = [
@@ -400,6 +413,12 @@ dev = [
     { name = "pytest", specifier = ">=8,<10" },
     { name = "ruff", specifier = "==0.17.6" },
 ]
+test-solver = [{ name = "quaecer-clockcheck", git = "https://github.com/quaecer/clockcheck.git?rev=530ba4a446aab700079d6ac51149c0d74f2f1a09" }]
+
+[[package]]
+name = "quaecer-spec-qualification"
+version = "1.0.0"
+source = { git = "https://github.com/quaecer/specs.git?subdirectory=qualification&rev=0ca04bc9cf0e3b16feb13f1349a1179ddca41e07#0ca04bc9cf0e3b16feb13f1349a1179ddca41e07" }
 
 [[package]]
 name = "ruff"

@@ -25,10 +25,10 @@ jobs:
         require-checksums: true
         enable-cache: false
     - run: uv sync --locked --python "${{ matrix.python }}"
-    - run: uv run --locked ruff check .
-    - run: uv run --locked ruff format --check .
-    - run: uv run --locked mypy src
-    - run: uv run --locked pytest
+    - run: uv run --locked --no-sync ruff check .
+    - run: uv run --locked --no-sync ruff format --check .
+    - run: uv run --locked --no-sync mypy src
+    - run: uv run --locked --no-sync pytest
   stdlib-only:
     runs-on: ubuntu-latest
     steps:
@@ -41,13 +41,8 @@ jobs:
         checksum: bf65ac1a0af10f92c522d91ac096c7c0a39657647b155577e7836c2cbbb4526c
         require-checksums: true
         enable-cache: false
-    - name: test an installed wheel without runtime dependencies
-      run: |
-        scratch=$(mktemp -d)
-        uv build --wheel --out-dir "$scratch"
-        uv venv "$scratch/venv" --python 3.12
-        uv pip install --python "$scratch/venv/bin/python" --no-deps "$scratch"/*.whl
-        "$scratch/venv/bin/python" -I -m unittest discover -s tests/unit
+    - run: uv sync --locked --python 3.12 --no-default-groups --no-editable --group test-solver
+    - run: uv run --locked --no-sync python -I -m unittest discover -s tests/unit
   gate:
     if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest

@@ -11,7 +11,7 @@ requires-python = ">=3.12"
 license = "Apache-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "Mariia Steeghs-Turchina" }]
-dependencies = []
+dependencies = ["quaecer-spec-qualification>=1.0,<2"]
 
 [project.urls]
 Source = "https://github.com/quaecer/qualref"
@@ -21,6 +21,8 @@ packages = ["src/quaecer"]
 
 [dependency-groups]
 dev = ["mypy>=1.15,<2", "pre-commit>=4,<5", "pytest>=8,<10", "ruff==0.17.6"]
+
+test-solver = ["quaecer-clockcheck==1.0.0.dev0"]
 
 [tool.ruff]
 line-length = 100
@@ -37,3 +39,10 @@ explicit_package_bases = true
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 addopts = "--strict-config --strict-markers"
+
+[tool.uv.sources]
+quaecer-spec-qualification = { git = "https://github.com/quaecer/specs.git", rev = "0ca04bc9cf0e3b16feb13f1349a1179ddca41e07", subdirectory = "qualification" }
+quaecer-clockcheck = { git = "https://github.com/quaecer/clockcheck.git", rev = "530ba4a446aab700079d6ac51149c0d74f2f1a09" }
+
+[tool.uv]
+default-groups = ["dev", "test-solver"]

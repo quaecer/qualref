@@ -16,3 +16,7 @@ Set `GATE_GITHUB_REPOSITORY` to the GitHub owner and repository and authenticate
 `gh` to include all pull request and issue text in the publication scan.
 CI scans repository text for owner branches. Run a maintainer scan before
 promotion. Repository settings remove merged topic branches.
+
+The locked development install uses an exact specification Git revision.
+Run `uv sync --locked` for a development install. A wheel installation also
+needs access to a compatible specification wheel through the package source.
